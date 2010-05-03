@@ -7,7 +7,7 @@
 ## http://search.cpan.org/dist/Devel-NYTProf/
 ##
 ###########################################################
-## $Id: NYTProf.pm 1157 2010-03-09 10:35:10Z tim.bunce $
+## $Id: NYTProf.pm 1211 2010-05-03 21:06:40Z tim.bunce@gmail.com $
 ###########################################################
 package Devel::NYTProf;
 
@@ -107,7 +107,7 @@ Uses novel techniques for efficient profiling
 
 =item *
 
-Sub-microsecond (100ns) resolution on systems with clock_gettime()
+Sub-microsecond (100ns) resolution on supported systems
 
 =item *
 
@@ -128,6 +128,10 @@ Program being profiled can stop/start the profiler
 =item *
 
 Generates richly annotated and cross-linked html reports
+
+=item *
+
+Captures source code, including string evals, for stable results
 
 =item *
 
@@ -389,21 +393,21 @@ The default 'opcode redirection' technique can't profile subroutines that were
 compiled before NYTProf was loaded. So using use_db_sub=1 can be useful in
 cases where you can't load the profiler early in the life of the application.
 
-=head2 savesrc=1
+=head2 savesrc=0
 
-Save a copy of all source code into the profile data file. This makes the file
-self-contained, so the reporting tools no longer depend on having the original
-source code files available. So it also insulates you from later changes to
-those files that would normally make the reports out of sync with the data.
+Disable the saving of source code.
 
-By default NYTProf saved some source code: the arguments to the C<perl -e>
-option, the script fed to perl via STDIN when using C<perl ->, and the source
-code of string evals. (Currently string eval  source code isn't available in
-the reports. Patches welcome.)
+By default NYTProf saves a copy of all source code, including string evals,
+into the profile data file.  This makes the file self-contained, so the
+reporting tools no longer depend on having the unmodified source code files
+available.
+(If you're using perl 5.10.0 or 5.8.8 (or earlier) then you need to also enable
+the L</use_db_sub=1> option otherwise perl doesn't make the source code
+available to NYTProf. Perl 5.8.9 and 5.10.1+ don't require that.)
 
-If you're using perl 5.10.0 or 5.8.8 (or earlier) then you need to also enable
-the C<use_db_sub=1> option otherwise perl doesn't make the source code
-available to NYTProf. Perl 5.8.9 and 5.10.1+ don't require that.
+With C<savesrc=0> some source code is still saved: the arguments to the
+C<perl -e> option, the script fed to perl via STDIN when using C<perl ->,
+and the source code of string evals.
 
 =head2 slowops=N
 
@@ -488,6 +492,16 @@ separated by commas, as the value of the option (case is not significant):
 
     sigexit=int,hup
 
+=head2 posix_exit=1
+
+The NYTProf subroutine profiler normally detects calls to C<POSIX::_exit()>
+(which exits the process without running END blocks) and automatically calls
+C<DB::finish_profile()> for you, so NYTProf 'just works'.
+
+When using the C<subs=0> option to disable the subroutine profiler the
+C<posix_exit> option can be used to tell NYTProf to take other steps to arrange
+for C<DB::finish_profile()> to be called before C<POSIX::_exit()>.
+
 =head2 forkdepth=N
 
 When a perl process that is being profiled executes a fork() the child process
@@ -544,7 +558,9 @@ closed.  Calling DB::disable_profile() doesn't do that.  To make a profile file
 usable before the profiled application has completed you can call
 DB::finish_profile(). Alternatively you could call DB::enable_profile($newfile).
 
-=head2 DB::disable_profile()
+=head2 disable_profile
+
+  DB::disable_profile()
 
 Stops collection of profile data.
 
@@ -552,17 +568,23 @@ Subroutine calls which were made while profiling was enabled and are still on
 the call stack (have not yet exited) will still have their profile data
 collected when they exit.
 
-=head2 DB::enable_profile($newfile)
+=head2 enable_profile
+
+  DB::enable_profile($newfile)
 
 Enables collection of profile data. If $newfile is true the profile data will be
 written to $newfile (after completing and closing the previous file, if any).
 If $newfile already exists it will be deleted first.
 
-=head2 DB::finish_profile()
+=head2 finish_profile
+
+  DB::finish_profile()
 
 Calls DB::disable_profile(), then completes the profile data file by writing
 subroutine profile data, and then closes the file. The in memory subroutine
 profile data is then discarded.
+
+Normally NYTProf arranges to call finish_profile() for you via an END block.
 
 =head1 DATA COLLECTION AND INTERPRETATION
 
@@ -580,6 +602,64 @@ variables, and callbacks from XS code.
 Perl 5.12 will hopefully also fix an inaccuracy in the timing of the last
 statement and the condition clause of some kinds of loops:
 L<http://rt.perl.org/rt3/Ticket/Display.html?id=60954>
+
+=head2 eval $string
+
+Perl treats each execution of a string eval (C<eval $string;> not C<eval { ...  }>)
+as a distinct file, so NYTProf does as well. The 'files' are given names with
+this structure:
+
+	(eval $sequence)[$filename:$line]
+
+for example "C<(eval 93)[/foo/bar.pm:42]>" would be the name given to the
+93rd execution of a string eval by that process and, in this case, the 93rd
+eval happened to be one at line 42 of "/foo/bar.pm".
+
+Nested string evals can give rise to file names like
+
+	(eval 1047)[(eval 93)[/foo/bar.pm:42]:17]
+
+=head3 Collapsing
+
+Some applications execute a great many string eval statements. If NYTProf generated
+a report page for each one it would not only slow report generation but also
+make the overall report less useful by scattering performance data too widely.
+On the other hand, being able to see the actual source code executed by an
+eval, along with the timing details, is often I<very> useful.
+
+To try to balance these conflicting needs, NYTProf currently I<collapses
+uninteresting string eval siblings>.
+
+What does that mean? Well, for each source code line that executed any string
+evals NYTProf first gathers the corresponding eval 'files' (the siblings) into groups.
+Lines containing a string eval statement that only executed once aren't affected.
+The groups are keyed by source code (if available) and whether any subroutines
+were defined or any nested string evals were executed.
+
+Then, for each of those groups of siblings, NYTProf will 'collapse' a group
+that shares the same source code and doesn't define any subs or execute any
+string evals.  Collapsing means to pick one sibling as the survivor and merge
+and delete all the data from the others into it.
+
+If there are a large number of sibling groups then the data for all of them are
+collapsed into one regardless.
+
+The report annotations will indicate when evals have been collapsed together.
+
+=head3 Timing
+
+Care should be taken when interpreting the report annotations associated with a
+string eval statement.  Normally the report annotations embedded into the
+source code related to timings from the I<subroutine> profiler. This isn't
+(currently) true of annotations for string eval statements.
+
+This makes a significant different if the eval defines any subroutines that get
+called I<after> the eval has returned. Because the time shown for a string eval
+is based on the I<statement> times it will include time spent executing
+statements within the subs defined by the eval.
+
+In future NYTProf may involve the subroutine profiler in timings evals and so
+be able to avoid this issue.
 
 =head2 Calls from XSUBs and Opcodes
 
@@ -901,7 +981,7 @@ but only at a very low 1/100th of a second resolution.
 
 =head1 BUGS
 
-Possibly.
+Possibly. All complex software has bugs. Let me know if you find one.
 
 =head1 SEE ALSO
 
@@ -929,6 +1009,26 @@ it's very likely to be deprecated in a future release).
 L<Devel::NYTProf::ReadStream> is the module that lets you read a profile data
 file as a stream of chunks of data.
 
+=head1 TROUBLESHOOTING
+
+=head2 Profile data incomplete, ...
+
+This error message means the file doesn't contain all the expected data.
+That may be because it was truncated (perhaps the filesystem was full) or,
+more commonly, because the all the expected data hasn't been written.
+
+NYTProf writes some important data to the data file when I<finishing> profiling.
+If you read the file before the profiling has finished you'll get this error.
+
+If the process being profiled is still running you'll need to wait until it
+exits cleanly (runs C<END> blocks or L</finish_profile> is called explicitly).
+
+If the process being profiled has exited then it's likely that it met with a
+sudden and unnatural death that didn't give NYTProf a chance to finish the profile.
+If the sudden death was due to a signal then L</sigexit=1> may help.
+If the sudden death was due to calling C<POSIX::_exit($status)> then you'll
+need to call L</finish_profile> before calling C<POSIX::_exit>.
+
 =head1 AUTHORS AND CONTRIBUTORS
 
 B<Tim Bunce> (L<http://www.tim.bunce.name> and L<http://blog.timbunce.org>)
@@ -950,7 +1050,7 @@ For more details see L</HISTORY> below.
 =head1 COPYRIGHT AND LICENSE
 
   Copyright (C) 2008 by Adam Kaplan and The New York Times Company.
-  Copyright (C) 2008, 2009 by Tim Bunce, Ireland.
+  Copyright (C) 2008-2010 by Tim Bunce, Ireland.
 
 This library is free software; you can redistribute it and/or modify
 it under the same terms as Perl itself, either Perl version 5.8.8 or,
@@ -1009,7 +1109,8 @@ cross-linked reports.
 
 Steve Peters came on board along the way with patches for portability and to
 keep NYTProf working with the latest development perl versions. Nicholas Clark
-added zip compression. Jan Dubois contributed Windows support.
+added zip compression, many optimizations, and C<nytprofmerge>.
+Jan Dubois contributed Windows support.
 
 Adam's work is sponsored by The New York Times Co. L<http://open.nytimes.com>.
 Tim's work was partly sponsored by Shopzilla L<http://www.shopzilla.com> during 2008.

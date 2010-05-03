@@ -13,7 +13,7 @@
  * Steve Peters, steve at fisharerojo.org
  *
  * ************************************************************************
- * $Id: NYTProf.xs 1169 2010-03-12 10:35:37Z tim.bunce $
+ * $Id: NYTProf.xs 1210 2010-05-03 20:49:06Z tim.bunce@gmail.com $
  * ************************************************************************
  */
 #ifndef WIN32
@@ -132,43 +132,44 @@ Perl_gv_fetchfile_flags(pTHX_ const char *const name, const STRLEN namelen, cons
 #define NYTP_FIDf_IS_FAKE        0x0080 /* eg dummy caller of a string eval that doesn't have a filename */
 
 /* indices to elements of the file info array */
-#define NYTP_FIDi_FILENAME      0
-#define NYTP_FIDi_EVAL_FID      1
-#define NYTP_FIDi_EVAL_LINE     2
-#define NYTP_FIDi_FID           3
-#define NYTP_FIDi_FLAGS         4
-#define NYTP_FIDi_FILESIZE      5
-#define NYTP_FIDi_FILEMTIME     6
-#define NYTP_FIDi_PROFILE       7
-#define NYTP_FIDi_EVAL_FI       8
-#define NYTP_FIDi_HAS_EVALS     9
+#define NYTP_FIDi_FILENAME       0
+#define NYTP_FIDi_EVAL_FID       1
+#define NYTP_FIDi_EVAL_LINE      2
+#define NYTP_FIDi_FID            3
+#define NYTP_FIDi_FLAGS          4
+#define NYTP_FIDi_FILESIZE       5
+#define NYTP_FIDi_FILEMTIME      6
+#define NYTP_FIDi_PROFILE        7
+#define NYTP_FIDi_EVAL_FI        8
+#define NYTP_FIDi_HAS_EVALS      9
 #define NYTP_FIDi_SUBS_DEFINED  10
 #define NYTP_FIDi_SUBS_CALLED   11
+#define NYTP_FIDi_elements      12   /* highest index, plus 1 */
 
 /* indices to elements of the sub call info array */
-#define NYTP_SIi_FID         0   /* fid of file sub was defined in */
-#define NYTP_SIi_FIRST_LINE  1   /* line number of first line of sub */    
-#define NYTP_SIi_LAST_LINE   2   /* line number of last line of sub */    
-#define NYTP_SIi_CALL_COUNT  3   /* number of times sub was called */
-#define NYTP_SIi_INCL_RTIME  4   /* incl real time in sub */
-#define NYTP_SIi_EXCL_RTIME  5   /* excl real time in sub */
-#define NYTP_SIi_SUB_NAME    6   /* sub name */
-#define NYTP_SIi_PROFILE     7   /* ref to profile object */
-#define NYTP_SIi_REC_DEPTH   8   /* max recursion call depth */
-#define NYTP_SIi_RECI_RTIME  9   /* recursive incl real time in sub */
-#define NYTP_SIi_CALLED_BY  10   /* { fid => { line => [...] } } */
-#define NYTP_SIi_elements   11   /* highest index, plus 1 */
+#define NYTP_SIi_FID             0   /* fid of file sub was defined in */
+#define NYTP_SIi_FIRST_LINE      1   /* line number of first line of sub */    
+#define NYTP_SIi_LAST_LINE       2   /* line number of last line of sub */    
+#define NYTP_SIi_CALL_COUNT      3   /* number of times sub was called */
+#define NYTP_SIi_INCL_RTIME      4   /* incl real time in sub */
+#define NYTP_SIi_EXCL_RTIME      5   /* excl real time in sub */
+#define NYTP_SIi_SUB_NAME        6   /* sub name */
+#define NYTP_SIi_PROFILE         7   /* ref to profile object */
+#define NYTP_SIi_REC_DEPTH       8   /* max recursion call depth */
+#define NYTP_SIi_RECI_RTIME      9   /* recursive incl real time in sub */
+#define NYTP_SIi_CALLED_BY      10   /* { fid => { line => [...] } } */
+#define NYTP_SIi_elements       11   /* highest index, plus 1 */
 
 /* indices to elements of the sub call info array */
-#define NYTP_SCi_CALL_COUNT  0   /* count of calls to sub */    
-#define NYTP_SCi_INCL_RTIME  1   /* inclusive real time in sub */    
-#define NYTP_SCi_EXCL_RTIME  2   /* exclusive real time in sub */    
-#define NYTP_SCi_spare_3     3   /* */
-#define NYTP_SCi_spare_4     4   /* */
-#define NYTP_SCi_RECI_RTIME  5   /* recursive incl real time in sub */
-#define NYTP_SCi_REC_DEPTH   6   /* max recursion call depth */
-#define NYTP_SCi_CALLING_SUB 7   /* name of calling sub */
-#define NYTP_SCi_elements    8   /* highest index, plus 1 */
+#define NYTP_SCi_CALL_COUNT      0   /* count of calls to sub */    
+#define NYTP_SCi_INCL_RTIME      1    /* inclusive real time in sub */    
+#define NYTP_SCi_EXCL_RTIME      2   /* exclusive real time in sub */    
+#define NYTP_SCi_spare_3         3   /* */
+#define NYTP_SCi_spare_4         4   /* */
+#define NYTP_SCi_RECI_RTIME      5   /* recursive incl real time in sub */
+#define NYTP_SCi_REC_DEPTH       6   /* max recursion call depth */
+#define NYTP_SCi_CALLING_SUB     7   /* name of calling sub */
+#define NYTP_SCi_elements        8   /* highest index, plus 1 */
 
 #define MAX_HASH_SIZE 512
 
@@ -212,7 +213,7 @@ static NYTP_file out;
 
 /* options and overrides */
 static char PROF_output_file[MAXPATHLEN+1] = "nytprof.out";
-static unsigned int profile_opts = NYTP_OPTf_OPTIMIZE;
+static unsigned int profile_opts = NYTP_OPTf_OPTIMIZE | NYTP_OPTf_SAVESRC;
 static int profile_start = NYTP_START_BEGIN;      /* when to start profiling */
 
 struct NYTP_int_options_t {
@@ -253,7 +254,9 @@ static struct NYTP_int_options_t options[] = {
 #define opt_nameevals options[14].option_value
     { "nameevals", 1 },                          /* change $^P 0x100 bit */
 #define opt_nameanonsubs options[15].option_value
-    { "nameanonsubs", 1 }                        /* change $^P 0x200 bit */
+    { "nameanonsubs", 1 },                       /* change $^P 0x200 bit */
+#define opt_evals options[16].option_value
+    { "evals", 0 }                               /* handling of string evals - TBD XXX */
 };
 
 /* time tracking */
@@ -491,9 +494,16 @@ read_str(pTHX_ NYTP_file ifile, SV *sv) {
     if (NYTP_TAG_STRING_UTF8 == tag)
         SvUTF8_on(sv);
 
-    if (trace_level >= 5)
-        logwarn("  read string '%.*s'%s\n", (int)len, SvPV_nolen(sv),
-            (SvUTF8(sv)) ? " (utf8)" : "");
+    if (trace_level >= 19) {
+        STRLEN len2 = len;
+        char *newline = "";
+        if (buf[len2-1] == '\n') {
+            --len2;
+            newline = "\\n";
+        }
+        logwarn("  read string '%.*s%s'%s\n", (int)len2, SvPV_nolen(sv),
+            newline, (SvUTF8(sv)) ? " (utf8)" : "");
+    }
 
     return sv;
 }
@@ -764,8 +774,8 @@ get_file_id(pTHX_ char* file_name, STRLEN file_name_len, int created_via)
     entry.key = file_name;
     entry.key_len = (unsigned int)file_name_len;
 
-    /* inserted new entry */
     if (1 != hash_op(entry, &found, (bool)(created_via ? 1 : 0))) {
+        /* found existing entry or else didn't but didn't create new one either */
         if (trace_level >= 7) {
             if (found)
                  logwarn("fid %d: %.*s\n",  found->id, found->key_len, found->key);
@@ -773,6 +783,7 @@ get_file_id(pTHX_ char* file_name, STRLEN file_name_len, int created_via)
         }
         return (found) ? found->id : 0;
     }
+    /* inserted new entry */
 
     /* if this is a synthetic filename for a string eval
      * ie "(eval 42)[/some/filename.pl:line]"
@@ -911,10 +922,10 @@ get_file_id(pTHX_ char* file_name, STRLEN file_name_len, int created_via)
      * then we'd like to save the src (NYTP_FIDf_HAS_SRC) if it's available
      */
     if (found->eval_fid
+    || (profile_opts & NYTP_OPTf_SAVESRC)
     || (found->key_len > 10 && found->key[9] == 'x' && strnEQ(found->key, "/loader/0x", 10))
     || (found->key[0] == '-' && (found->key_len == 1 ||
-                                 (found->key[1] == 'e' && found->key_len == 2)))
-    || (profile_opts & NYTP_OPTf_SAVESRC)
+                                (found->key[1] == 'e' && found->key_len == 2)))
     ) {
         found->fid_flags |= NYTP_FIDf_SAVE_SRC;
     }
@@ -1263,7 +1274,7 @@ DB_stmt(pTHX_ COP *cop, OP *op)
     if (!is_profiling || !profile_stmts)
         return;
 #ifdef MULTIPLICITY
-    if (my_perl != orig_my_perl)
+    if (orig_my_perl && my_perl != orig_my_perl)
         return;
 #endif
 
@@ -1294,7 +1305,7 @@ DB_stmt(pTHX_ COP *cop, OP *op)
                                  last_executed_line);
 
         if (trace_level >= 4)
-            logwarn("Wrote %d:%-4d %2ld ticks (%u, %u)\n", last_executed_fid,
+            logwarn("\twrote %d:%-4d %2ld ticks (%u, %u)\n", last_executed_fid,
                 last_executed_line, elapsed, last_block_line, last_sub_line);
     }
 
@@ -1388,7 +1399,7 @@ DB_leave(pTHX_ OP *op)
     if (!is_profiling || !out || !profile_stmts)
         return;
 #ifdef MULTIPLICITY
-    if (my_perl != orig_my_perl)
+    if (orig_my_perl && my_perl != orig_my_perl)
         return;
 #endif
 
@@ -1412,7 +1423,7 @@ DB_leave(pTHX_ OP *op)
     }
 
     if (trace_level >= 4) {
-        logwarn("left %u:%u back to %s at %u:%u (b%u s%u) - discounting next statement%s\n",
+        logwarn("\tleft %u:%u back to %s at %u:%u (b%u s%u) - discounting next statement%s\n",
             prev_last_executed_fid, prev_last_executed_line,
             OP_NAME_safe(op),
             last_executed_fid, last_executed_line, last_block_line, last_sub_line,
@@ -2088,8 +2099,17 @@ subr_entry_setup(pTHX_ COP *prev_cop, subr_entry_t *clone_subr_entry, OPCODE op_
         GV *called_gv = Nullgv;
         subr_entry->called_cv = resolve_sub_to_cv(aTHX_ subr_sv, &called_gv);
         if (called_gv) {
-            subr_entry->called_subpkg_pv = HvNAME(GvSTASH(called_gv));
+            char *p = HvNAME(GvSTASH(called_gv));
+            subr_entry->called_subpkg_pv = p;
             subr_entry->called_subnam_sv = newSVpv(GvNAME(called_gv), 0);
+
+            /* detect calls to POSIX::_exit */
+            if ('P'==*p++ && 'O'==*p++ && 'S'==*p++ && 'I'==*p++ && 'X'==*p++ && 0==*p) {
+                char *s = GvNAME(called_gv);
+                if ('_'==*s++ && 'e'==*s++ && 'x'==*s++ && 'i'==*s++ && 't'==*s++ && 0==*s) {
+                    finish_profile(aTHX);
+                }
+            }
         }
         else {
             subr_entry->called_subnam_sv = newSV(0); /* see incr_sub_inclusive_time */
@@ -2301,7 +2321,7 @@ pp_subcall_profiler(pTHX_ int is_slowop)
         || !subr_entry_ix ) /* goto out of sub whose entry wasn't profiled */
        )
 #ifdef MULTIPLICITY
-    || (my_perl != orig_my_perl)
+    || (orig_my_perl && my_perl != orig_my_perl)
 #endif
     ) {
         return run_original_op(op_type);
@@ -2594,8 +2614,11 @@ enable_profile(pTHX_ char *file)
     /* enable the run-time aspects to profiling */
     int prev_is_profiling = is_profiling;
 #ifdef MULTIPLICITY
-    if (my_perl != orig_my_perl)
+    if (orig_my_perl && my_perl != orig_my_perl) {
+        if (trace_level)
+            logwarn("~ enable_profile call from different interpreter ignored\n");
         return 0;
+    }
 #endif
 
     if (trace_level)
@@ -2637,8 +2660,11 @@ disable_profile(pTHX)
 {
     int prev_is_profiling = is_profiling;
 #ifdef MULTIPLICITY
-    if (my_perl != orig_my_perl)
+    if (orig_my_perl && my_perl != orig_my_perl) {
+        if (trace_level)
+            logwarn("~ disable_profile call from different interpreter ignored\n");
         return 0;
+    }
 #endif
     if (is_profiling) {
         if (opt_use_db_sub)
@@ -2648,8 +2674,8 @@ disable_profile(pTHX)
         is_profiling = 0;
     }
     if (trace_level)
-        logwarn("~ disable_profile (previously %s, pid %d)\n",
-            prev_is_profiling ? "enabled" : "disabled", getpid());
+        logwarn("~ disable_profile (previously %s, pid %d, trace %d)\n",
+            prev_is_profiling ? "enabled" : "disabled", getpid(), trace_level);
     return prev_is_profiling;
 }
 
@@ -2659,8 +2685,11 @@ finish_profile(pTHX)
 {
     int saved_errno = errno;
 #ifdef MULTIPLICITY
-    if (my_perl != orig_my_perl)
+    if (orig_my_perl && my_perl != orig_my_perl)
+        if (trace_level) {
+            logwarn("~ finish_profile call from different interpreter ignored\n");
         return;
+    }
 #endif
 
     if (trace_level >= 1)
@@ -2694,10 +2723,12 @@ init_profiler(pTHX)
 #endif
 
 #ifdef MULTIPLICITY
-    if (!orig_my_perl)
-        orig_my_perl = my_perl;
-    else if (orig_my_perl != my_perl) {
-        logwarn("NYTProf: threads/multiplicity not supported!\n");
+    if (!orig_my_perl) {
+        if (1)
+            orig_my_perl = my_perl;
+    }
+    else if (orig_my_perl && orig_my_perl != my_perl) {
+        logwarn("NYTProf: perl interpreter address changed after init (threads/multiplicity not supported)\n");
         return 0;
     }
 #endif
@@ -2757,8 +2788,9 @@ init_profiler(pTHX)
 #endif
 
     if (trace_level)
-        logwarn("~ init_profiler for pid %d, clock %d, start %d, perldb 0x%lx\n",
-            last_pid, profile_clock, profile_start, (long unsigned)PL_perldb);
+        logwarn("~ init_profiler for pid %d, clock %d, start %d, perldb 0x%lx, exitf 0x%lx\n",
+            last_pid, profile_clock, profile_start,
+            (long unsigned)PL_perldb, (long unsigned)PL_exit_flags);
 
     if (get_hv("DB::sub", 0) == NULL) {
         logwarn("NYTProf internal error - perl not in debug mode\n");
@@ -2864,23 +2896,7 @@ NV time, unsigned int eval_file_num, unsigned int eval_line_num, int count)
     if (!SvROK(line_time_rvav))                   /* autoviv */
         sv_setsv(line_time_rvav, newRV_noinc((SV*)newAV()));
 
-    if (!eval_line_num) {
-        store_profile_line_entry(aTHX_ line_time_rvav, line_num, time, count, fid);
-    }
-    else {
-        /* times for statements executed *within* a string eval are accumulated
-         * embedded nested within the line the eval is on but without increasing
-         * the time or count of the eval itself. Instead the time and count is
-         * accumulated for each line within the eval on an embedded array reference.
-         */
-        AV *av = store_profile_line_entry(aTHX_ line_time_rvav, eval_line_num, 0, 0, fid);
-
-        SV *eval_line_time_rvav = *av_fetch(av, 2, 1);
-        if (!SvROK(eval_line_time_rvav))          /* autoviv */
-            sv_setsv(eval_line_time_rvav, newRV_noinc((SV*)newAV()));
-
-        store_profile_line_entry(aTHX_ eval_line_time_rvav, line_num, time, count, fid);
-    }
+    store_profile_line_entry(aTHX_ line_time_rvav, line_num, time, count, fid);
 }
 
 
@@ -3201,8 +3217,8 @@ write_sub_callers(pTHX)
             if (sc[NYTP_SCi_INCL_RTIME] < 0.0 || sc[NYTP_SCi_EXCL_RTIME] < 0.0) {
                 ++negative_time_calls;
                 if (trace_level) {
-                    logwarn("%s call has negative time: incl %"NVff"s, excl %"NVff"s (clock id %d)\n",
-                        called_subname, sc[NYTP_SCi_INCL_RTIME], sc[NYTP_SCi_EXCL_RTIME], profile_clock);
+                    logwarn("%s call has negative time: incl %"NVff"s, excl %"NVff"s:\n",
+                        called_subname, sc[NYTP_SCi_INCL_RTIME], sc[NYTP_SCi_EXCL_RTIME]);
                     trace = 1;
                 }
             }
@@ -3221,7 +3237,7 @@ write_sub_callers(pTHX)
         }
     }
     if (negative_time_calls) {
-        logwarn("Warning: %d subroutine calls had negative time! The clock being used (%d) and the results you'll get are likely to be unstable.\n",
+        logwarn("Warning: %d subroutine calls had negative time! The clock being used (%d) is probably unstable, so the results will be as well.\n",
             negative_time_calls, profile_clock);
     }
 }
@@ -3285,7 +3301,7 @@ write_src_of_files(pTHX)
             /* outputting the tag and fid for each (non empty) line
              * is a little inefficient, but not enough to worry about */
             NYTP_write_src_line(out, e->id, line, src, (I32)len);    /* includes newline */
-            if (trace_level >= 5) {
+            if (trace_level >= 8) {
                 logwarn("fid %d src line %d: %s%s", e->id, line, src,
                     (len && src[len-1]=='\n') ? "" : "\n");
             }
@@ -3367,6 +3383,8 @@ normalize_eval_seqn(pTHX_ SV *sv) {
     char *start = SvPV(sv, len);
     char *first_space;
 
+    return; /* XXX normalize_eval_seqn is currently disabled */
+
     /* effectively does
        s/(
           \(                  # first character is literal (
@@ -3404,8 +3422,8 @@ normalize_eval_seqn(pTHX_ SV *sv) {
         if (*close != ')')
             continue;
 
-        if (trace_level >= 5)
-            logwarn("found eval at '%s' in %s\n", first_digit, start);
+        if (trace_level >= 15)
+            logwarn("recognized eval in name at '%s' in %s\n", first_digit, start);
 
         *first_digit++ = '0';
 
@@ -3421,7 +3439,7 @@ normalize_eval_seqn(pTHX_ SV *sv) {
             SvCUR_set(sv, SvCUR(sv) - (close - first_digit));
         }
 
-        if (trace_level >= 5)
+        if (trace_level >= 15)
             logwarn("edited it to: %s\n", start);
     }
 }
@@ -3583,16 +3601,7 @@ load_time_callback(Loader_state_base *cb_data, const nytp_tax_index tag, ...)
             sv_setsv(fid_info_rvav, &PL_sv_no);
         }
     }
-    else {
-        eval_outer_fid(aTHX_ state->fid_fileinfo_av, file_num, 1,
-                       &eval_file_num, &eval_line_num);
-    }
 
-    if (eval_file_num) {              /* fid is an eval */
-        if (trace_level >= 3)
-            sprintf(trace_note," (was string eval fid %u)", file_num);
-        file_num = eval_file_num;
-    }
     if (trace_level >= 4) {
         const char *new_file_name = "";
         if (file_num != state->last_file_num && SvROK(fid_info_rvav))
@@ -3613,16 +3622,16 @@ load_time_callback(Loader_state_base *cb_data, const nytp_tax_index tag, ...)
         if (!state->fid_block_time_av)
             state->fid_block_time_av = newAV();
         add_entry(aTHX_ state->fid_block_time_av, file_num, block_line_num,
-                  seconds, eval_file_num, eval_line_num,
-                  1 - state->statement_discount
-            );
+                seconds, eval_file_num, eval_line_num,
+                1 - state->statement_discount
+        );
 
         if (!state->fid_sub_time_av)
             state->fid_sub_time_av = newAV();
         add_entry(aTHX_ state->fid_sub_time_av, file_num, sub_line_num,
-                  seconds, eval_file_num, eval_line_num,
-                  1 - state->statement_discount
-            );
+                seconds, eval_file_num, eval_line_num,
+                1 - state->statement_discount
+        );
 
         if (trace_level >= 4)
             logwarn("\tblock %u, sub %u\n", block_line_num, sub_line_num);
@@ -3764,8 +3773,8 @@ load_src_line_callback(Loader_state_base *cb_data, const nytp_tax_index tag, ...
     
     av_store(file_av, line_num, src);
 
-    if (trace_level >= 4) {
-        logwarn("Fid %2u:%u: %s\n", file_num, line_num, SvPV_nolen(src));
+    if (trace_level >= 8) {
+        logwarn("Fid %2u:%u src: %s\n", file_num, line_num, SvPV_nolen(src));
     }
 }
 
@@ -3888,6 +3897,9 @@ load_sub_callers_callback(Loader_state_base *cb_data, const nytp_tax_index tag, 
     if (!SvROK(sv))                   /* autoviv */
         sv_setsv(sv, newRV_noinc((SV*)newHV()));
 
+    /* XXX gets called with fid=0 to indicate is_xsub
+     * That's a hack that should be removed once we have per-sub flags
+     */
     if (fid) {
         SV *fi;
         AV *av;
@@ -4283,7 +4295,7 @@ load_profile_data_from_stream(loader_callback *callbacks,
         }
 
         state->input_chunk_seqn++;
-        if (trace_level >= 6)
+        if (trace_level >= 9)
             logwarn("Chunk %lu token is %d ('%c') at %ld%s\n",
                     state->input_chunk_seqn, c, c, NYTP_tell(in)-1,
                     NYTP_type_of_offset(in));
@@ -4514,8 +4526,9 @@ load_profile_to_hv(pTHX_ NYTP_file in)
 
 
     if (HvKEYS(state.live_pids_hv)) {
-        logwarn("profile data possibly truncated, no terminator for %"IVdf" pids\n",
-            HvKEYS(state.live_pids_hv));
+        logwarn("Profile data incomplete, no terminator for %"IVdf" pids %s\n",
+            HvKEYS(state.live_pids_hv),
+            "(refer to TROUBLESHOOTING in the documentation)");
         store_attrib_sv(aTHX_ state.attr_hv, STR_WITH_LEN("complete"),
                         &PL_sv_no);
     }
@@ -4679,6 +4692,7 @@ static struct int_constants_t int_constants[] = {
     {"NYTP_FIDi_HAS_EVALS", NYTP_FIDi_HAS_EVALS},
     {"NYTP_FIDi_SUBS_DEFINED", NYTP_FIDi_SUBS_DEFINED},
     {"NYTP_FIDi_SUBS_CALLED",  NYTP_FIDi_SUBS_CALLED},
+    {"NYTP_FIDi_elements",     NYTP_FIDi_elements},
     /* NYTP_SIi_* */
     {"NYTP_SIi_FID",          NYTP_SIi_FID},
     {"NYTP_SIi_FIRST_LINE",   NYTP_SIi_FIRST_LINE},
@@ -4691,6 +4705,7 @@ static struct int_constants_t int_constants[] = {
     {"NYTP_SIi_REC_DEPTH",    NYTP_SIi_REC_DEPTH},
     {"NYTP_SIi_RECI_RTIME",   NYTP_SIi_RECI_RTIME},
     {"NYTP_SIi_CALLED_BY",    NYTP_SIi_CALLED_BY},
+    {"NYTP_SIi_elements",     NYTP_SIi_elements},
     /* NYTP_SCi_* */
     {"NYTP_SCi_CALL_COUNT",   NYTP_SCi_CALL_COUNT},
     {"NYTP_SCi_INCL_RTIME",   NYTP_SCi_INCL_RTIME},
@@ -4698,6 +4713,7 @@ static struct int_constants_t int_constants[] = {
     {"NYTP_SCi_RECI_RTIME",   NYTP_SCi_RECI_RTIME},
     {"NYTP_SCi_REC_DEPTH",    NYTP_SCi_REC_DEPTH},
     {"NYTP_SCi_CALLING_SUB",  NYTP_SCi_CALLING_SUB},
+    {"NYTP_SCi_elements",     NYTP_SCi_elements},
     /* others */
     {"NYTP_DEFAULT_COMPRESSION", default_compression_level},
     {"NYTP_FILE_MAJOR_VERSION",  NYTP_FILE_MAJOR_VERSION},
@@ -4859,11 +4875,14 @@ SV* cb;
     }
     if (cb && SvROK(cb)) {
         load_profile_to_callback(aTHX_ in, SvRV(cb));
-        RETVAL = newHV(); /* Can we change this to PL_sv_undef?  */
-    } else
+        RETVAL = (HV*) &PL_sv_undef;
+    }
+    else {
         RETVAL = load_profile_to_hv(aTHX_ in);
+    }
 
     if ((result = NYTP_close(in, 0)))
         logwarn("Error closing profile data file: %s\n", strerror(result));
+
     OUTPUT:
     RETVAL
