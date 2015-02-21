@@ -1,17 +1,5 @@
 # test determination of subroutine caller in unusual cases
 
-{
-    my $a = time;
-    # calls to TIESCALAR aren't seen by perl < 5.8.9 and 5.10.1
-    sub MyTie::TIESCALAR { bless {}, shift; }
-    sub MyTie::FETCH { }
-    sub MyTie::STORE { }
-}
-
-tie my $tied, 'MyTie', 42;  # TIESCALAR
-$tied = 1;                  # STORE
-if ($tied) { 1 }            # FETCH
-
 # test dying from an xsub
 require Devel::NYTProf::Test;
 eval { Devel::NYTProf::Test::example_xsub(0, "die") };
@@ -23,10 +11,8 @@ sub1 eval { Devel::NYTProf::Test::example_xsub(0, "die") };
 
 # test sub calls (xs and perl) from within a sort block
 sub sub2 { $_[0] }
-my @a = sort {
-    Devel::NYTProf::Test::example_xsub();
-    sub2($a) <=> sub2($b);
-} (1,3,2);
+# sort block on one line due to change to line numbering in perl 5.21
+my @a = sort { Devel::NYTProf::Test::example_xsub(); sub2($a) <=> sub2($b); } (1,3,2);
 
 # test sub call as a sort block
 sub sub3 { $_[0] } # XXX not recorded due to limitation of perl

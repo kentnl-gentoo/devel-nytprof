@@ -6,8 +6,8 @@ use Test::More;
 use lib qw(t/lib);
 use NYTProfTest;
 
-eval "use Sub::Name 0.04; 1"
-	or plan skip_all => "Sub::Name 0.04 required (0.06+ preferred)";
+eval "use Sub::Name 0.11; 1"
+	or plan skip_all => "Sub::Name 0.11 or later required";
 
 print "Sub::Name $Sub::Name::VERSION $INC{'Sub/Name.pm'}\n";
 
@@ -51,3 +51,9 @@ __DATA__
 #!perl
 use Sub::Name;
 (subname 'named' => sub { print "sub called\n" })->();
+
+my $longname = "sub34567890" x 10 x 4;
+(subname $longname => sub { print "sub called\n" })->();
+
+my $deepname = "sub345678::" x 10 x 4;
+(subname $deepname => sub { print "sub called\n" })->();

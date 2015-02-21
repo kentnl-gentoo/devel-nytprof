@@ -1,9 +1,31 @@
 language: perl
+
 perl:
-  - "5.19"
-  - "5.18"
-  - "5.16"
-  - "5.14"
-  - "5.12"
-  - "5.10"
-  - "5.8"
+    - "blead"
+    - "blead-thr-mb-shrplib-dbg"
+    - "5.20"
+    - "5.20-extras"
+    - "5.20-thr-mb-shrplib-dbg"
+    - "5.18"
+    - "5.18-extras"
+    - "5.16"
+    - "5.14"
+    - "5.12"
+    - "5.10"
+    - "5.8"
+
+before_install:
+    - git clone git://github.com/travis-perl/helpers ~/travis-perl-helpers
+    - source ~/travis-perl-helpers/init
+    - build-perl
+    - perl -V
+    - build-dist
+    - cd $BUILD_DIR # $BUILD_DIR is set by the build-dist command
+
+install:
+    - cpan-install --deps       # installs prereqs, including recommends
+    - cpanm Test::Pod Test::Pod::Coverage || true
+    - cpanm Test::Portability::Files || true
+
+notifications:
+    irc: "irc.perl.org#nytprof"

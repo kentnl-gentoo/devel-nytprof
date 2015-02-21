@@ -62,8 +62,10 @@ Devel::NYTProf - Powerful fast feature-rich Perl source code profiler
   # or into comma separated files, e.g., ./nytprof/*.csv
   nytprofcsv
 
-A screencast about profiling perl code, including a detailed look at how to use
-NYTProf and how to optimize your code, is available at L<http://timbunce.blip.tv/file/3913278/>
+I give talks on profiling perl code, including a detailed look at how to use
+NYTProf and how to optimize your code, every year. A video of my YAPC::NA 2014
+talk can be found at L<http://perltv.org/v/performance-profiling-with-develnytprof>
+
 
 =head1 DESCRIPTION
 
@@ -867,6 +869,11 @@ The C<Devel::NYTProf> subroutine profiler gets confused by the stack gymnastics
 performed by the L<Coro> module and aborts. When profiling applications that
 use Coro you should disable the subroutine profiler using the L</subs=0> option.
 
+=head2 FCGI::Engine
+
+Using C<open('-|')> in code running under L<FCGI::Engine> causes a panic in nytprofcalls.
+See https://github.com/timbunce/devel-nytprof/issues/20 for more information.
+
 =head2 For perl < 5.8.8 it may change what caller() returns
 
 For example, the L<Readonly> module croaks with "Invalid tie" when profiled with
@@ -1080,8 +1087,6 @@ impacted by those more than it otherwise would.
 
 =head3 Windows
 
-B<THIS SECTION DOESN'T MATCH THE CODE>
-
 On Windows NYTProf uses Time::HiRes which uses the windows
 QueryPerformanceCounter() API with some extra logic to adjust for the current
 clock speed and try to resync the raw counter to wallclock time every so often
@@ -1211,6 +1216,12 @@ cause of this warning.
 You could also try recompiling perl to use 'long doubles' for the NV floating
 point type (use Configure -Duselongdouble). If you try this please let me know.
 I'd also happily take a patch to use long doubles, if available, by default.
+
+=head2 panic: buffer overflow ...
+
+You have unusually long subroutine names in your code. You'll need to rebuild
+Devel::NYTProf with the NYTP_MAX_SUB_NAME_LEN environment variable set to a
+value longer than the longest subroutine names in your code.
 
 =head1 AUTHORS AND CONTRIBUTORS
 
