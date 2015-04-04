@@ -9,7 +9,7 @@
 ###########################################################
 package Devel::NYTProf;
 
-our $VERSION = '5.07'; # also change in Devel::NYTProf::Core
+our $VERSION = '6.01'; # also change in Devel::NYTProf::Core
 
 package    # hide the package from the PAUSE indexer
     DB;
@@ -338,6 +338,7 @@ Specify at which phase of program execution the profiler should be enabled:
 
 The start=no option is handy if you want to explicitly control profiling
 by calling DB::enable_profile() and DB::disable_profile() yourself.
+See L</RUN-TIME CONTROL OF PROFILING>.
 
 =head2 optimize=0
 
@@ -607,30 +608,39 @@ collecting profile data.
 Using the C<start=no> option lets you leave the profiler disabled initially
 until you call DB::enable_profile() at the right moment. You still need to
 load Devel::NYTProf as early as possible, even if you don't call
-DB::enable_profile() until much later. See also L</use_db_sub=1>.
+DB::enable_profile() until much later. That's because any code that's compiled
+before Devel::NYTProf is loaded will not be profiled by default. See also
+L</use_db_sub=1>.
 
 The profile output file can't be used until it's been properly completed and
 closed.  Calling DB::disable_profile() doesn't do that.  To make a profile file
 usable before the profiled application has completed you can call
 DB::finish_profile(). Alternatively you could call DB::enable_profile($newfile).
 
+Always call the DB::enable_profile(), DB::disable_profile() or
+DB::finish_profile() function with the C<DB::> prefix as shown because you
+can't import them. They're provided automatically when NYTProf is in use.
+
 =head2 disable_profile
 
   DB::disable_profile()
 
-Stops collection of profile data.
+Stops collection of profile data until DB:enable_profile() is called.
 
 Subroutine calls which were made while profiling was enabled and are still on
 the call stack (have not yet exited) will still have their profile data
-collected when they exit.
+collected when they exit. Compare with L</finish_profile> below.
 
 =head2 enable_profile
 
   DB::enable_profile($newfile)
+  DB::enable_profile()
 
-Enables collection of profile data. If $newfile is true the profile data will be
+Enables collection of profile data. If $newfile is specified the profile data will be
 written to $newfile (after completing and closing the previous file, if any).
 If $newfile already exists it will be deleted first.
+If DB::enable_profile() is called without a filename argument then profile data
+will continue to be written to the current file (nytprof.out by default).
 
 =head2 finish_profile
 
@@ -658,7 +668,7 @@ when perl calls or returns from a subroutine.
 The individual statement timings for a subroutine usually add up to slightly
 less than the exclusive time for the subroutine. That's because the handling of
 the subroutine call and return overheads is included in the exclusive time for
-the subroutine. The difference may only be a new microseconds but that may
+the subroutine. The difference may only be a few microseconds but that may
 become noticeable for subroutines that are called hundreds of thousands of times.
 
 The statement profiler keeps track how much time was spent on overheads, like
@@ -1086,6 +1096,8 @@ you're profiling spawns cpu intensive sub processes then your process will be
 impacted by those more than it otherwise would.
 
 =head3 Windows
+
+B<THIS SECTION DOESN'T MATCH THE CODE>
 
 On Windows NYTProf uses Time::HiRes which uses the windows
 QueryPerformanceCounter() API with some extra logic to adjust for the current
