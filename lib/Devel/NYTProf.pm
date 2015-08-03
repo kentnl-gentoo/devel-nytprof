@@ -4,12 +4,12 @@
 ##
 ## Copyright, contact and other information can be found
 ## at the bottom of this file, or by going to:
-## http://search.cpan.org/dist/Devel-NYTProf/
+## http://metacpan.org/release/Devel-NYTProf/
 ##
 ###########################################################
 package Devel::NYTProf;
 
-our $VERSION = '6.01'; # also change in Devel::NYTProf::Core
+our $VERSION = '6.02'; # also change in Devel::NYTProf::Core
 
 package    # hide the package from the PAUSE indexer
     DB;

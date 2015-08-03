@@ -4,7 +4,7 @@
 #
 # Copyright, contact and other information can be found
 # at the bottom of this file, or by going to:
-# http://search.cpan.org/dist/Devel-NYTProf/
+# http://metacpan.org/release/Devel-NYTProf/
 #
 ##########################################################
 
@@ -16,7 +16,7 @@ require Devel::NYTProf::FileHandle;
 require Devel::NYTProf::Data;
 use List::Util qw(min sum);
 
-our $VERSION = '6.01';
+our $VERSION = '6.02';
     
 if ($VERSION != $Devel::NYTProf::Core::VERSION) {
     die "$0 version '$VERSION' doesn't match version '$Devel::NYTProf::Core::VERSION' of $INC{'Devel/NYTProf/Core.pm'}\n";
