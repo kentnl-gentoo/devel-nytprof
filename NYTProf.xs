@@ -1271,6 +1271,12 @@ cx_block_type(PERL_CONTEXT *cx) {
 #ifdef CXt_LOOP_LAZYIV
     case CXt_LOOP_LAZYIV:       return "CXt_LOOP_LAZYIV";
 #endif
+#ifdef CXt_LOOP_ARY
+    case CXt_LOOP_ARY:          return "CXt_LOOP_ARY";
+#endif
+#ifdef CXt_LOOP_LIST
+    case CXt_LOOP_LIST:         return "CXt_LOOP_LIST";
+#endif
     }
     /* short-lived and not thread safe but we only use this for tracing
      * and it should never be reached anyway
@@ -1323,12 +1329,17 @@ start_cop_of_context(pTHX_ PERL_CONTEXT *cx)
 #  endif
             break;
 #else
-#  if defined (CXt_LOOP_PLAIN) && defined (CXt_LOOP_FOR) && defined(CXt_LOOP_LAZYIV) && defined (CXt_LOOP_LAZYSV)
+#  if defined (CXt_LOOP_PLAIN) && defined(CXt_LOOP_LAZYIV) && defined (CXt_LOOP_LAZYSV)
             /* This is Perl 5.11.0 or later */
         case CXt_LOOP_LAZYIV:
         case CXt_LOOP_LAZYSV:
         case CXt_LOOP_PLAIN:
+#    if defined (CXt_LOOP_FOR)
         case CXt_LOOP_FOR:
+#    else
+        case CXt_LOOP_ARY:
+        case CXt_LOOP_LIST:
+#    endif
             start_op = cx->blk_loop.my_op->op_redoop;
             break;
 #  else
@@ -1987,9 +1998,9 @@ struct subr_entry_st {
 };
 
 /* save stack index to the current subroutine entry structure */
-static I32 subr_entry_ix = 0;
+static I32 subr_entry_ix = -1;
 
-#define subr_entry_ix_ptr(ix) ((ix) ? SSPTR(ix, subr_entry_t *) : NULL)
+#define subr_entry_ix_ptr(ix) ((ix != -1) ? SSPTR(ix, subr_entry_t *) : NULL)
 
 
 static void
@@ -2404,7 +2415,7 @@ subr_entry_setup(pTHX_ COP *prev_cop, subr_entry_t *clone_subr_entry, OPCODE op_
 
     if (subr_entry_ix <= prev_subr_entry_ix) {
         /* one cause of this is running NYTProf with threads */
-        logwarn("NYTProf panic: stack is confused, giving up! (Try running with subs=0)\n");
+        logwarn("NYTProf panic: stack is confused, giving up! (Try running with subs=0) ix=%"IVdf" prev_ix=%"IVdf"\n", (IV)subr_entry_ix, (IV)prev_subr_entry_ix);
         /* limit the damage */
         disable_profile(aTHX);
         return prev_subr_entry_ix;
@@ -2653,7 +2664,7 @@ pp_subcall_profiler(pTHX_ int is_slowop)
     CV *called_cv;
     dSP;
     SV *sub_sv = *SP;
-    I32 this_subr_entry_ix = 0; /* local copy (needed for goto) */
+    I32 this_subr_entry_ix; /* local copy (needed for goto) */
 
     subr_entry_t *subr_entry;
 
@@ -2668,7 +2679,7 @@ pp_subcall_profiler(pTHX_ int is_slowop)
         /* don't profile other kinds of goto */
     || (op_type==OP_GOTO &&
         (  !(SvROK(sub_sv) && SvTYPE(SvRV(sub_sv)) == SVt_PVCV)
-        || !subr_entry_ix ) /* goto out of sub whose entry wasn't profiled */
+        || subr_entry_ix == -1) /* goto out of sub whose entry wasn't profiled */
        )
 #ifdef MULTIPLICITY
     || (orig_my_perl && my_perl != orig_my_perl)
@@ -2770,6 +2781,7 @@ pp_subcall_profiler(pTHX_ int is_slowop)
     subr_entry = subr_entry_ix_ptr(this_subr_entry_ix);
 
     /* detect wierdness/corruption */
+    assert(subr_entry);
     assert(subr_entry->caller_fid < fidhash.next_id);
 
     /* Check if this call has already been counted because the op performed

@@ -9,7 +9,7 @@
 ###########################################################
 package Devel::NYTProf;
 
-our $VERSION = '6.02'; # also change in Devel::NYTProf::Core
+our $VERSION = '6.02_90'; # also change in Devel::NYTProf::Core
 
 package    # hide the package from the PAUSE indexer
     DB;
@@ -853,7 +853,7 @@ This is the main report generation tool for NYTProf.
 =head2 nytprofcg
 
 Translates a profile into a format that can be loaded into KCachegrind
-L<http://kcachegrind.sourceforge.net>
+L<http://kcachegrind.github.io/>
 
 =head2 nytprofcalls
 
